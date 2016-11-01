@@ -346,6 +346,16 @@ function check_cudaizability.stat(cx, node)
     return true
 
   elseif node:is(ast.typed.stat.If) then
+    -- bookkeeping for alias analysis
+    collect_bounds(node.cond):map(function(pair)
+      local ty, field = unpack(pair)
+      local field_hash = field:hash()
+      if not cx.read_set[ty] then cx.read_set[ty] = {} end
+      if not cx.read_set[ty][field_hash] then
+        cx.read_set[ty][field_hash] = data.newtuple(field, node)
+      end
+    end)
+
     if not check_cudaizability.expr(cx, node.cond) then return false end
 
     if not check_cudaizability.block(cx, node.then_block) then

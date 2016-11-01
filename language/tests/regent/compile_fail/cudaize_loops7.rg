@@ -13,24 +13,32 @@
 -- limitations under the License.
 
 -- fails-with:
--- cudaize_loops7.rg:32: cudaization failed: loop body has a non-scalar if-condition
---    if e.v > 1 then e.v = 0 end
---     ^
+-- cudaize_loops7.rg:40: cudaization failed: loop body has aliasing update of path region(fs2()).v
+--     if e.p2.v > 1 then e.p1.v = 0 end
+--                        ^
 
 import "regent"
 
-fspace fs
+fspace fs2
 {
   v : float,
 }
 
+fspace fs1(r : region(fs2), s : region(fs2))
+{
+  p1 : ptr(fs2, r),
+  p2 : ptr(fs2, r, s),
+}
+
 __demand(__cuda)
-task toplevel()
-  var n = 8
-  var r = region(ispace(ptr, n), fs)
-  for e in r do
-    if r[e+1].v > 1 then e.v = 0 end
+task f(r : region(fs2), s : region(fs2), t : region(fs1(r, s)))
+where
+  reads(r.v, s.v, t.p1, t.p2),
+  writes(r.v, s.v)
+do
+  for e in t do
+    if e.p2.v > 1 then e.p1.v = 0 end
   end
 end
 
-regentlib.start(toplevel)
+regentlib.start(f)
