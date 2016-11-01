@@ -187,21 +187,22 @@ end
 local check_cudaizability = {}
 local error_prefix = "cudaization failed: loop body has "
 
-function check_cudaizability.entry(node)
-  local cx = context:new_global_scope(node.symbol)
-  cx:assign(node.symbol, C)
-  cx.demanded = true --node.annotations.vectorize:is(ast.annotation.Demand)
+function check_cudaizability.block(cx, node)
+  if cx == nil then
+    local new_cx = context:new_global_scope(node.symbol)
+    new_cx:assign(node.symbol, C)
+    new_cx.demanded = true
+    return check_cudaizability.block(new_cx, node.block)
+  end
+
   local function doNothing(node)
-    
+
   end
   local function printNode(node)
     print(node:tostring(false))
   end
-  --ast.traverse_node_prepostorder(printNode, doNothing, node.block)
-  return check_cudaizability.block(cx, node.block)
-end
+  --ast.traverse_node_prepostorder(printNode, doNothing, node)
 
-function check_cudaizability.block(cx, node)
   cx = cx:new_local_scope()
   for i, stat in ipairs(node.stats) do
     local cudaizable = check_cudaizability.stat(cx, stat)
@@ -249,7 +250,7 @@ function check_cudaizability.stat(cx, node)
         if not check_cudaizability.expr(cx, value) then return false end
         fact = cx:lookup_expr_type(value)
       end
-      
+
       cx:assign(symbol, fact)
       node.values:map(function(value)
         collect_bounds(value):map(function(pair)
@@ -272,17 +273,25 @@ function check_cudaizability.stat(cx, node)
       if not check_cudaizability.expr(cx, lh) or
          not check_cudaizability.expr(cx, rh) then return false end
 
-      if cx:lookup_expr_type(lh) == S and cx:lookup_expr_type(rh) == V then
-        cx:report_error_when_demanded(node, error_prefix ..
-          "an assignment of a non-scalar expression to a scalar expression")
-        return false
-      end
+      if node:is(ast.typed.stat.Reduce) and cx:lookup_expr_type(lh) == S then
+        if node.op ~= "+" and node.op ~= "*" and node.op ~= "max" and node.op ~= "min" then
+            cx:report_error_when_demanded(node, error_prefix ..
+              "unsupported reduction operation")
+            return false
+        end
+      else
+          if cx:lookup_expr_type(lh) == S and cx:lookup_expr_type(rh) == V then
+            cx:report_error_when_demanded(node, error_prefix ..
+              "an assignment of a non-scalar expression to a scalar expression")
+            return false
+          end
 
-      -- TODO: we could accept statements with no loop carrying dependence
-      if cx:lookup_expr_type(lh) == S then
-        cx:report_error_when_demanded(node, error_prefix ..
-          "an assignment to a scalar expression")
-        return false
+          -- TODO: we could accept statements with no loop carrying dependence
+          if cx:lookup_expr_type(lh) == S then
+            cx:report_error_when_demanded(node, error_prefix ..
+              "an assignment to a scalar expression")
+            return false
+          end
       end
 
       -- TODO: for the moment we reject an assignment such as
@@ -338,7 +347,6 @@ function check_cudaizability.stat(cx, node)
 
   elseif node:is(ast.typed.stat.If) then
     if not check_cudaizability.expr(cx, node.cond) then return false end
-    -- TODO: check for loop carried dependence in condition
 
     if not check_cudaizability.block(cx, node.then_block) then
       return false
@@ -352,7 +360,11 @@ function check_cudaizability.stat(cx, node)
 
   elseif node:is(ast.typed.stat.Elseif) then
     if not check_cudaizability.expr(cx, node.cond) then return false end
-    -- TODO: check for loop carried dependence in condition
+    if cx:lookup_expr_type(node.cond) ~= S then
+      cx:report_error_when_demanded(node,
+        error_prefix ..  "a non-scalar if-condition")
+      return false
+    end
 
     return check_cudaizability.block(cx, node.block)
 

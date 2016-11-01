@@ -12,25 +12,27 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- fails-with:
--- cudaize_loops7.rg:32: cudaization failed: loop body has a non-scalar if-condition
---    if e.v > 1 then e.v = 0 end
---     ^
-
 import "regent"
 
-fspace fs
-{
-  v : float,
+local c = regentlib.c
+
+struct t {
+  a : int
 }
 
 __demand(__cuda)
-task toplevel()
-  var n = 8
-  var r = region(ispace(ptr, n), fs)
-  for e in r do
-    if r[e+1].v > 1 then e.v = 0 end
-  end
-end
+task main()
+  var r = region(ispace(ptr, 5), t)
+  var x0 = new(ptr(t, r))
+  var x1 = new(ptr(t, r))
+  var x2 = new(ptr(t, r))
+  var x3 = new(ptr(t, r))
 
-regentlib.start(toplevel)
+  var i = 0
+  for x in r do
+    i += 3
+  end
+
+  regentlib.assert(i == 12, "test failed")
+end
+regentlib.start(main)

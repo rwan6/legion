@@ -623,7 +623,7 @@ local function unpack_region(cx, region_expr, region_type, static_region_type)
   assert(not cx:has_region(region_type))
 
   local r = terralib.newsymbol(region_type, "r")
-  local lr = terralib.newsymbol(c.legion_logical_region_t, "lr") 
+  local lr = terralib.newsymbol(c.legion_logical_region_t, "lr")
   local is = terralib.newsymbol(c.legion_index_space_t, "is")
   local isa = false
   if not cx.leaf and region_type:is_opaque() then
@@ -858,7 +858,7 @@ end
 
 local function get_element_pointer(cx, node, region_types, index_type, field_type,
                                    base_pointer, strides, index)
-  if bounds_checks then
+  if not cx.task_meta:getcuda() and bounds_checks then
     local terra check(runtime : c.legion_runtime_t,
                       ctx : c.legion_context_t,
                       pointer : index_type,
@@ -6446,7 +6446,7 @@ function codegen.stat_for_list(cx, node)
         end
         [cleanup_actions]
       end
-    else      
+    else
       local fields = ispace_type.index_type.fields
       if fields then
         local rect_type = c["legion_rect_" .. tostring(ispace_type.dim) .. "d_t"]
@@ -6489,11 +6489,11 @@ function codegen.stat_for_list(cx, node)
     end
   else
     -- Check cudaizability
-    local cudaizable = check_cudaizability.entry(node)
+    local cudaizable = check_cudaizability.block(nil, node)
     if not cudaizable then
       error("code not CUDAizable")
     end
-  
+
     -- Find variables defined from the outer scope
     local undefined = {}
     local defined = { [node.symbol] = true }
@@ -6536,7 +6536,7 @@ function codegen.stat_for_list(cx, node)
                                    node.block)
 
     local function doNothing(node)
-    
+
     end
     local function printNode(node)
       print(node:tostring(false))
