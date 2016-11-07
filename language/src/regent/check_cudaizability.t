@@ -48,6 +48,8 @@ else
   end
 end
 
+local reduction = nil
+
 local V = {}
 V.__index = V
 function V:__tostring() return "vector" end
@@ -187,22 +189,31 @@ end
 local check_cudaizability = {}
 local error_prefix = "cudaization failed: loop body has "
 
+function check_cudaizability.get_reduction_node()
+  return reduction
+end
+
+check_cudaizability.pass_name = "check_cudaizability"
+
+function check_cudaizability.entry(node)
+  if node:is(ast.typed.top.Task) then
+    local cudaizable = true
+    node.body.stats:map(function (stat)
+      if stat:is(ast.typed.stat.ForList) then
+        local cx = context:new_global_scope(stat.symbol)
+        cx:assign(stat.symbol, C)
+        cx.demanded = true
+        reduction = nil
+
+        cudaizable = check_cudaizability.block(cx, stat.block)
+      end
+    end)
+    if not cudaizable then error("code not CUDAizable") end
+  end
+  return node
+end
+
 function check_cudaizability.block(cx, node)
-  if cx == nil then
-    local new_cx = context:new_global_scope(node.symbol)
-    new_cx:assign(node.symbol, C)
-    new_cx.demanded = true
-    return check_cudaizability.block(new_cx, node.block)
-  end
-
-  local function doNothing(node)
-
-  end
-  local function printNode(node)
-    print(node:tostring(false))
-  end
-  --ast.traverse_node_prepostorder(printNode, doNothing, node)
-
   cx = cx:new_local_scope()
   for i, stat in ipairs(node.stats) do
     local cudaizable = check_cudaizability.stat(cx, stat)
@@ -274,6 +285,14 @@ function check_cudaizability.stat(cx, node)
          not check_cudaizability.expr(cx, rh) then return false end
 
       if node:is(ast.typed.stat.Reduce) and cx:lookup_expr_type(lh) == S then
+        if reduction then
+          cx:report_error_when_demanded(node, error_prefix ..
+            "multiple reduction statements")
+          return false
+        end
+
+        reduction = node
+
         if node.op ~= "+" and node.op ~= "*" and node.op ~= "max" and node.op ~= "min" then
             cx:report_error_when_demanded(node, error_prefix ..
               "unsupported reduction operation")

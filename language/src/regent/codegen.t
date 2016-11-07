@@ -21,7 +21,6 @@ local std = require("regent/std")
 local symbol_table = require("regent/symbol_table")
 local codegen_hooks = require("regent/codegen_hooks")
 local cudahelper = require("regent/cudahelper")
-local check_cudaizability = require("regent/check_cudaizability")
 
 -- Configuration Variables
 
@@ -6488,12 +6487,6 @@ function codegen.stat_for_list(cx, node)
       end
     end
   else
-    -- Check cudaizability
-    local cudaizable = check_cudaizability.block(nil, node)
-    if not cudaizable then
-      error("code not CUDAizable")
-    end
-
     -- Find variables defined from the outer scope
     local undefined = {}
     local defined = { [node.symbol] = true }
@@ -6534,14 +6527,6 @@ function codegen.stat_for_list(cx, node)
     ast.traverse_node_prepostorder(collect_symbol_pre,
                                    collect_symbol_post,
                                    node.block)
-
-    local function doNothing(node)
-
-    end
-    local function printNode(node)
-      print(node:tostring(false))
-    end
-    --ast.traverse_node_prepostorder(printNode, doNothing, node.block)
 
     -- Base pointers need a special treatment to find them
     local base_pointers = {}
@@ -6663,7 +6648,6 @@ function codegen.stat_for_list(cx, node)
     args:sort(function(s1, s2) return sizeof(s1.type) > sizeof(s2.type) end)
 
     local terra kernel([args]) [body] end
-    --kernel:printpretty(true)
 
     -- Register the kernel function to JIT
     local kernel_id = cx.task_meta:addcudakernel(kernel)

@@ -26,6 +26,7 @@ local optimize_mapping = require("regent/optimize_mapping")
 local optimize_traces = require("regent/optimize_traces")
 local parallelize_tasks = require("regent/parallelize_tasks")
 local vectorize_loops = require("regent/vectorize_loops")
+local check_cudaizability = require("regent/check_cudaizability")
 
 if std.config["flow"] then
   require("regent/flow_from_ast") -- priority 15
@@ -41,6 +42,7 @@ if std.config["leaf"] then passes_hooks.add_optimization(40, optimize_config_opt
 if std.config["mapping"] then passes_hooks.add_optimization(50, optimize_mapping) end
 if std.config["trace"] then passes_hooks.add_optimization(60, optimize_traces) end
 if std.config["no-dynamic-branches"] then passes_hooks.add_optimization(70, optimize_divergence) end
+if std.config["cuda"] then passes_hooks.add_optimization(75, check_cudaizability) end
 if std.config["vectorize"] then passes_hooks.add_optimization(80, vectorize_loops) end
 
 passes_hooks.debug_optimizations()
