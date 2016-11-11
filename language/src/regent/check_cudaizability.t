@@ -193,6 +193,10 @@ function check_cudaizability.get_reduction_node()
   return reduction
 end
 
+function check_cudaizability.clear_reduction_node()
+  reduction = nil
+end
+
 check_cudaizability.pass_name = "check_cudaizability"
 
 function check_cudaizability.entry(node)

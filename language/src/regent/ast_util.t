@@ -330,6 +330,16 @@ function ast_util.mk_stat_for_list(symbol, value, block)
   }
 end
 
+function ast_util.mk_stat_for_num(symbol, values, block)
+  return ast.typed.stat.ForNum {
+    symbol = symbol,
+    values = values,
+    block = block,
+    span = ast.trivial_span(),
+    annotations = ast.default_annotations(),
+  }
+end
+
 function ast_util.mk_task_param(symbol)
   return ast.typed.top.TaskParam {
     symbol = symbol,
